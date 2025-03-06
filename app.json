@@ -1,15 +1,19 @@
 {
   "expo": {
     "name": "HabitAnalyzer",
-    "slug": "HabitAnalyzer",
+    "slug": "habitanalyzer",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "habitanalyzer",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gurleensingh.habitanalyzer",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -36,6 +40,15 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "7cf2c4b0-146c-4806-8e0d-1d37ce38b79e"
+      }
+    },
+    "owner": "gurleensingh"
   }
 }
