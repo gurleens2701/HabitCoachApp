@@ -1,4 +1,4 @@
-//app/_layout.jsx
+// app/_layout.jsx
 import { Stack } from 'expo-router';
 
 export default function RootLayout() {
@@ -8,6 +8,10 @@ export default function RootLayout() {
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
       <Stack.Screen name="create" options={{ 
+        presentation: 'modal',
+        animation: 'slide_from_bottom'
+      }} />
+      <Stack.Screen name="edit" options={{ 
         presentation: 'modal',
         animation: 'slide_from_bottom'
       }} />

@@ -1,69 +1,95 @@
-// app/create.jsx
+// app/edit.jsx
 import { View, TextInput, Pressable, Text, StyleSheet, ActivityIndicator, SafeAreaView, KeyboardAvoidingView, Platform, Switch, Modal } from 'react-native';
 import { useState, useCallback } from 'react';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { HabitProvider } from '../context/HabitContext';
 import { useHabitContext } from '../context/HabitContext';
 
-export default function CreateHabitScreenWrapper() {
+export default function EditHabitScreenWrapper() {
   return (
     <HabitProvider>
-      <CreateHabitScreen />
+      <EditHabitScreen />
     </HabitProvider>
   );
 }
 
-function CreateHabitScreen() {
-  const { addHabit } = useHabitContext();
+function EditHabitScreen() {
+  const { habits, editHabit } = useHabitContext();
+  const params = useLocalSearchParams();
+  const habitId = params.id;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [habitData, setHabitData] = useState(null);
   
   // Time picker state
   const [showTimeModal, setShowTimeModal] = useState(false);
   const [selectedHour, setSelectedHour] = useState('7');
   const [selectedMinute, setSelectedMinute] = useState('00');
   const [isAM, setIsAM] = useState(true);
-  
-  const [habitData, setHabitData] = useState({
-    name: '',
-    description: '',
-    targetCompletions: '21',
-    timeframe: '',
-    trackStreak: false,
-    targetTime: null,
-  });
 
+  // Load habit data when screen is focused
   useFocusEffect(
     useCallback(() => {
-      console.log('Create habit screen focused - resetting form');
-      setHabitData({
-        name: '',
-        description: '',
-        targetCompletions: '21',
-        timeframe: '',
-        trackStreak: false,
-        targetTime: null,
-      });
+      const currentHabit = habits.find(h => h.id === habitId);
+      if (currentHabit) {
+        setHabitData({
+          name: currentHabit.name,
+          description: currentHabit.description || '',
+          targetCompletions: currentHabit.targetCompletions.toString(),
+          timeframe: currentHabit.timeframe ? currentHabit.timeframe.toString() : '',
+          trackStreak: currentHabit.trackStreak || false,
+          targetTime: currentHabit.targetTime || null,
+        });
+        
+        // If there's an existing target time, initialize our time picker with it
+        if (currentHabit.targetTime) {
+          initializeTimeFromString(currentHabit.targetTime);
+        } else {
+          // Set default time (current time)
+          const now = new Date();
+          let hours = now.getHours();
+          const minutes = now.getMinutes();
+          const am = hours < 12;
+          
+          // Convert to 12-hour format
+          if (hours > 12) hours -= 12;
+          if (hours === 0) hours = 12;
+          
+          setSelectedHour(hours.toString());
+          setSelectedMinute(minutes.toString().padStart(2, '0'));
+          setIsAM(am);
+        }
+      }
       setIsSubmitting(false);
       setShowTimeModal(false);
+      return () => {};
+    }, [habitId, habits])
+  );
+
+  // Helper to initialize time picker from a time string like "14:30"
+  const initializeTimeFromString = (timeString) => {
+    try {
+      const [hoursStr, minutesStr] = timeString.split(':');
+      let hours = parseInt(hoursStr, 10);
+      const minutes = parseInt(minutesStr, 10);
       
-      // Reset time to a default value
-      const now = new Date();
-      let hours = now.getHours();
-      const minutes = now.getMinutes();
+      // Convert from 24-hour to 12-hour format
       const am = hours < 12;
-      
-      // Convert to 12-hour format
       if (hours > 12) hours -= 12;
       if (hours === 0) hours = 12;
       
       setSelectedHour(hours.toString());
       setSelectedMinute(minutes.toString().padStart(2, '0'));
       setIsAM(am);
-      
-      return () => {};
-    }, [])
-  );
+    } catch (error) {
+      console.error('Error parsing time string:', error);
+      // Fallback to default
+      setSelectedHour('7');
+      setSelectedMinute('00');
+      setIsAM(true);
+    }
+  };
 
   // Format the time for storage and display
   const formatTimeForStorage = () => {
@@ -81,8 +107,8 @@ function CreateHabitScreen() {
     return `${selectedHour}:${selectedMinute} ${isAM ? 'AM' : 'PM'}`;
   };
 
-  const handleCreate = async () => {
-    if (isSubmitting) return;
+  const handleEdit = async () => {
+    if (isSubmitting || !habitData) return;
     
     if (!habitData.name.trim()) {
       alert('Please enter a habit name');
@@ -92,26 +118,24 @@ function CreateHabitScreen() {
     try {
       setIsSubmitting(true);
       
-      // Create a copy of habit data with formatted time
+      // Create a copy of habit data with the correctly formatted time
       const dataToSubmit = {
         ...habitData,
-        targetTime: habitData.targetTime ? formatTimeForStorage() : null
+        targetTime: habitData.targetTime // This will already be in the correct format
       };
       
-      console.log('Starting habit creation:', dataToSubmit);
-      const success = await addHabit(dataToSubmit);
-      console.log('Habit creation result:', success);
-      
+      console.log('Editing habit:', { id: habitId, ...dataToSubmit });
+      const success = await editHabit(habitId, dataToSubmit);
       if (success) {
-        console.log('Successfully created habit');
+        console.log('Successfully edited habit');
         router.back();
       } else {
-        alert('Failed to create habit');
+        alert('Failed to edit habit');
         setIsSubmitting(false);
       }
     } catch (error) {
-      console.error('Error creating habit:', error);
-      alert('Error creating habit');
+      console.error('Error editing habit:', error);
+      alert('Error editing habit');
       setIsSubmitting(false);
     }
   };
@@ -125,6 +149,21 @@ function CreateHabitScreen() {
     setShowTimeModal(false);
   };
 
+  const handleClearTime = () => {
+    setHabitData(prev => ({ 
+      ...prev, 
+      targetTime: null 
+    }));
+  };
+
+  if (!habitData) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <Text>Loading habit...</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
@@ -134,7 +173,7 @@ function CreateHabitScreen() {
         >
           <Text style={styles.backButtonText}>Cancel</Text>
         </Pressable>
-        <Text style={styles.headerTitle}>Create Habit</Text>
+        <Text style={styles.headerTitle}>Edit Habit</Text>
         <View style={styles.placeholder} />
       </View>
       
@@ -148,7 +187,6 @@ function CreateHabitScreen() {
             placeholder="Habit Name"
             value={habitData.name}
             onChangeText={(text) => setHabitData(prev => ({ ...prev, name: text }))}
-            autoFocus={true}
           />
           <TextInput
             style={styles.inputMultiline}
@@ -181,18 +219,30 @@ function CreateHabitScreen() {
             />
           </View>
 
-          {/* Custom Time Selection UI */}
           <View style={styles.timeContainer}>
             <Text style={styles.timeLabel}>Daily Target Time (optional)</Text>
-            <Pressable
-              style={styles.timeButton}
-              onPress={() => setShowTimeModal(true)}
-              disabled={isSubmitting}
-            >
-              <Text style={styles.timeButtonText}>
-                {habitData.targetTime ? `Set for ${habitData.targetTime}` : 'Pick a time'}
-              </Text>
-            </Pressable>
+            <Text style={styles.timeDisplay}>
+              {habitData.targetTime ? `Set for ${habitData.targetTime}` : 'No time set'}
+            </Text>
+            <View style={styles.timeButtonsRow}>
+              <Pressable
+                style={styles.timeButton}
+                onPress={() => setShowTimeModal(true)}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.timeButtonText}>Change Time</Text>
+              </Pressable>
+              
+              {habitData.targetTime && (
+                <Pressable
+                  style={[styles.timeButton, styles.clearButton]}
+                  onPress={handleClearTime}
+                  disabled={isSubmitting}
+                >
+                  <Text style={styles.clearButtonText}>Clear Time</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
           
           <Pressable 
@@ -200,16 +250,16 @@ function CreateHabitScreen() {
               styles.button,
               isSubmitting && styles.buttonDisabled
             ]}
-            onPress={handleCreate}
+            onPress={handleEdit}
             disabled={isSubmitting}
           >
             {isSubmitting ? (
               <View style={styles.buttonContent}>
                 <ActivityIndicator size="small" color="white" />
-                <Text style={styles.buttonText}>Creating...</Text>
+                <Text style={styles.buttonText}>Saving...</Text>
               </View>
             ) : (
-              <Text style={styles.buttonText}>Create Habit</Text>
+              <Text style={styles.buttonText}>Save Changes</Text>
             )}
           </Pressable>
         </View>
@@ -423,6 +473,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
+  timeContainer: {
+    marginBottom: 16,
+  },
+  timeLabel: {
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 8,
+  },
+  timeDisplay: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 8,
+  },
+  timeButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  timeButton: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  timeButtonText: {
+    fontSize: 16,
+    color: '#007AFF',
+  },
+  clearButton: {
+    backgroundColor: '#f8f8f8',
+    borderColor: '#ff3b30',
+  },
+  clearButtonText: {
+    color: '#ff3b30',
+  },
   button: {
     backgroundColor: '#007AFF',
     padding: 16,
@@ -444,26 +532,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
-  },
-  timeContainer: {
-    marginBottom: 16,
-  },
-  timeLabel: {
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 8,
-  },
-  timeButton: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  timeButtonText: {
-    fontSize: 16,
-    color: '#007AFF',
   },
   // Modal styles
   modalOverlay: {
